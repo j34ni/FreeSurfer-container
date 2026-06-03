@@ -1,9 +1,12 @@
 FROM ubuntu:24.04
+
 ENV TZ="Europe/Oslo"
 ENV PATH="/opt/conda/bin:$PATH"
 SHELL ["/bin/bash", "-c"]
 
-RUN apt-get update -y && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+RUN apt-get update -y && \
+    DEBIAN_FRONTEND=noninteractive apt-get upgrade -y && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         build-essential ca-certificates git git-annex libglu1-mesa libsm6 \
         libxext6 libxt6 tcsh tzdata unzip wget xxd && \
     rm -rf /var/lib/apt/lists/*
@@ -24,8 +27,6 @@ RUN source /opt/conda/etc/profile.d/conda.sh && \
 ENV FS_TAG=v8.2.0
 ENV FREESURFER_HOME=/opt/freesurfer
 
-ARG CACHE_BUST=1
-
 RUN git config --global user.email "build@docker" && \
     git config --global user.name "Docker Build" && \
     git clone https://github.com/freesurfer/freesurfer.git /var/tmp/freesurfer && \
@@ -33,11 +34,8 @@ RUN git config --global user.email "build@docker" && \
     git checkout ${FS_TAG} && \
     git remote add datasrc https://surfer.nmr.mgh.harvard.edu/pub/dist/freesurfer/repo/annex.git && \
     git fetch datasrc && \
-    git config annex.diskreserve 0 && \
     git-annex get --metadata fstags=makeinstall . && \
-    git-annex get distribution/ && \
-    git-annex get mri_claustrum_seg/ && \
-    git-annex get mri_pglands_seg/
+    git-annex get mri_pglands_seg/ mri_claustrum_seg/ distribution/
 
 RUN source /opt/conda/etc/profile.d/conda.sh && \
     conda activate base && \
@@ -54,22 +52,18 @@ RUN source /opt/conda/etc/profile.d/conda.sh && \
     sed -i 's|prune_cuda()||g' python/CMakeLists.txt && \
     sed -i 's|integrate_samseg()||g' python/CMakeLists.txt && \
     export PYTHONHOME=/opt/conda && \
-    export CPATH=/opt/conda/include:${CPATH} && \
     cmake \
         -DCMAKE_INSTALL_PREFIX=${FREESURFER_HOME} \
         -DMARTINOS_BUILD=OFF \
         -DBUILD_GUIS=ON \
         -DDISTRIBUTE_FSPYTHON=OFF \
         -DINFANT_MODULE=OFF \
-        -DINSTALL_PYTHON_DEPENDENCIES=OFF \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_PREFIX_PATH=/opt/conda \
         -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
         -DVTK_COMPONENT_REQUIREMENTS_RENDERINGTK=OFF \
         -DPython3_EXECUTABLE=/opt/conda/bin/python3 \
         -DPython3_ROOT_DIR=/opt/conda \
-        -DPYTHON_EXECUTABLE=/opt/conda/bin/python3 \
-        -DZLIB_ROOT=/opt/conda \
         . && \
     make -j$(nproc) && \
     find /var/tmp/freesurfer -name "cmake_install.cmake" | \
