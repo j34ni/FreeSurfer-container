@@ -2,6 +2,7 @@ FROM ubuntu:24.04
 
 ENV TZ="Europe/Oslo"
 ENV PATH="/opt/conda/bin:$PATH"
+ENV TAR_OPTIONS="--no-same-owner"
 SHELL ["/bin/bash", "-c"]
 
 RUN apt-get update -y && \
@@ -76,6 +77,13 @@ ENV SUBJECTS_DIR=${FREESURFER_HOME}/subjects
 ENV MNI_DIR=${FREESURFER_HOME}/mni
 ENV FSF_OUTPUT_FORMAT=nii.gz
 ENV FS_LICENSE=/opt/freesurfer/.license
+
+RUN /opt/conda/bin/conda remove -y --force conda-rattler-solver py-rattler && \
+    conda clean -afy
+
+RUN apt-get remove -y wget xxd binutils && apt-get autoremove -y
+RUN apt-get update -y && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
+RUN /opt/conda/bin/pip install "aiohttp>=3.14.0"
 
 COPY start.sh /opt/start.sh
 RUN chmod +x /opt/start.sh
